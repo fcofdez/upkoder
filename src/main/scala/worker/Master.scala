@@ -71,6 +71,7 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
         if (workState.hasWork)
           sender() ! MasterWorkerProtocol.WorkIsReady
       }
+
     case MasterWorkerProtocol.WorkerRequestsWork(workerId) =>
       workers.get(workerId) match {
         case Some(s @ WorkerState(_, Idle)) =>
@@ -83,5 +84,70 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
           }
         case _ =>
       }
+
+    case MasterWorkerProtocol.WorkIsDone(workerId, workId, result) =>
+      if (workState.isDone(workId)) {
+        sender() ! MasterWorkerProtocol.Ack(workId)
+      } else if (!workState.isInProgress(workId)) {
+        log.info("Work {} not in progress, reported as done by worker {}", workId, workerId)
+      } else {
+        log.info("Work {} is done by worker {}", workId, workerId)
+        changeWorkerToIdle(workerId, workId)
+        persist(WorkCompleted(workId, result)) { event ⇒
+          workState = workState.updated(event)
+          mediator ! DistributedPubSubMediator.Publish(ResultsTopic, WorkResult(workId, result))
+          sender ! MasterWorkerProtocol.Ack(workId)
+        }
+      }
+
+    case MasterWorkerProtocol.WorkFailed(workerId, workId) =>
+      if (workState.isInProgress(workId)) {
+        log.info("Work {} failed by worker {}", workId, workerId)
+        changeWorkerToIdle(workerId, workId)
+        persist(WorkerFailed(workId)) { event ⇒
+          workState = workState.updated(event)
+          notifyWorkers()
+        }
+      }
+    case work: Work =>
+      if (workState.isAccepted(work.workId)) {
+        sender() ! Master.Ack(work.workId)
+      } else {
+        log.info("Accepted work: {}", work.workId)
+        persist(WorkAccepted(work)) { event ⇒
+          sender() ! Master.Ack(work.workId)
+          workState = workState.updated(event)
+          notifyWorkers()
+        }
+      }
+
+    case CleanupTick =>
+      for ((workerId, s @ WorkerState(_, Busy(workId, timeout))) ← workers) {
+        if (timeout.isOverdue) {
+          log.info("Work timed out: {}", workId)
+          workers -= workerId
+          persist(WorkerTimedOut(workId)) { event ⇒
+            workState = workState.updated(event)
+            notifyWorkers()
+          }
+        }
+      }
+
   }
+
+  def notifyWorkers(): Unit =
+    if (workState.hasWork) {
+      workers.foreach {
+          case (_, WorkerState(ref, Idle)) => ref ! MasterWorkerProtocol.WorkIsReady
+          case _                           => // busy
+        }
+    }
+
+
+  def changeWorkerToIdle(workerId: String, workId: String): Unit =
+    workers.get(workerId) match {
+      case Some(s @ WorkerState(_, Busy(`workId`, _))) =>
+        workers += (workerId -> s.copy(status = Idle))
+      case _ =>
+    }
 }

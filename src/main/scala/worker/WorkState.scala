@@ -44,7 +44,7 @@ case class WorkState private (
       copy(
         workInProgress = workInProgress + (workId -> work),
         pendingWork = rest)
-    case WorkCompleted(workId) =>
+    case WorkCompleted(workId, _) =>
       copy(
         workInProgress = workInProgress - workId,
         doneWorkIds = doneWorkIds + workId)
@@ -57,5 +57,4 @@ case class WorkState private (
         pendingWork = pendingWork enqueue workInProgress(workId),
         workInProgress = workInProgress - workId)
   }
-
 }
