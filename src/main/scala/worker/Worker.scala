@@ -37,6 +37,9 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
 
   var currentWorkId: Option[String] = None
 
+  val workExecutor = context.watch(context.actorOf(workExecutorProps, "exec"))
+
+
   override def supervisorStrategy = OneForOneStrategy() {
     case _: ActorInitializationException => Stop
     case _: DeathPactException           => Stop
@@ -63,20 +66,8 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
     case Work(workId, archive_url, job) =>
       log.info("Got work: {}", job)
       currentWorkId = Some(workId)
-      //workExecutor ! job
+      workExecutor ! archive_url
       context.become(working)
-  }
-
-
-  def working: Receive = {
-    case WorkComplete(result) =>
-      log.info("Work is complete. Result {}.", result)
-      sendToMaster(WorkIsDone(workerId, workId, result))
-      context.setReceiveTimeout(5.seconds)
-      context.become(waitForWorkIsDoneAck(result))
-
-    case _: Work =>
-      log.info("Yikes. Master told me to do work, while I'm working.")
   }
 
 
@@ -90,9 +81,11 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
       sendToMaster(WorkIsDone(workerId, workId, result))
   }
 
+
   def sendToMaster(msg: Any): Unit = {
     clusterClient ! SendToAll("/user/master/active", msg)
   }
+
 
   def working: Receive = {
     case WorkComplete(result) =>
