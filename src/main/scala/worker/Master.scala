@@ -46,6 +46,8 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
 
   private var workers = Map[String, WorkerState]()
 
+  private var workState = WorkState.empty
+
   import context.dispatcher
   val cleanupTask = context.system.scheduler.schedule(workTimeout / 2, workTimeout / 2,
     self, CleanupTick)
@@ -66,7 +68,10 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
       } else {
         log.info("Worker registered: {}", workerId)
         workers += (workerId -> WorkerState(sender(), status = Idle))
+        if (workState.hasWork)
+          sender() ! MasterWorkerProtocol.WorkIsReady
       }
+    case MasterWorkerProtocol.WorkerRequestsWork(workerId) =>
   }
 
 
