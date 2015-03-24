@@ -7,11 +7,16 @@ import sys.process._
 import util.Random.nextInt
 
 
+case class EncodedVideo(video_url: String, thumbnail_urls: Seq[String])
+
+
 class WorkExecutor extends Actor {
   def receive = {
     case url: String =>
       val filename = download_video(url)
-      val x = generateThumbnails(filename)
+      val thumbnails = generateThumbnails(filename)
+      val video_url = encode(filename)
+      sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
   }
 
   def getDuration(filePath: String): Int = {
