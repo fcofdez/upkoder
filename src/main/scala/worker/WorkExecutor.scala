@@ -19,14 +19,11 @@ class WorkExecutor extends Actor {
       sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
   }
 
-  def uploadToS3(filePath: String): String = {
+  def uploadToS3(filePath: String): Option[String] = {
     implicit val s3 = S3()
     val file = new java.io.File(filePath)
-    val bucket = s3.bucket("bucketname").foreach { _.put(file.getName, file) }
-    //s3.bucket("bucketname").foreach { _.getObject(file.getName) } map { _.publicUrl }
-    //val s3obj = bucket.getObject(file.getName)
-    //s3obj.publicUrl
-    "asd"
+    s3.bucket("bucketname").foreach { _.put(file.getName, file) }
+    s3.bucket("bucketname").flatMap { s3.getObject(_, file.getName) } map { _.publicUrl.toString }
   }
 
   def getDuration(filePath: String): Int = {
