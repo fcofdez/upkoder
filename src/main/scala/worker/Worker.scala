@@ -94,6 +94,6 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
       context.setReceiveTimeout(5.seconds)
       context.become(waitForWorkIsDoneAck(result))
     case _: Work =>
-      log.info("Woker {} is already working", workerId)
+      log.info("Worker {} is already working", workerId)
   }
 }

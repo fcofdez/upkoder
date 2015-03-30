@@ -4,7 +4,6 @@ version := "0.1"
 
 scalaVersion := "2.11.6"
 
-
 libraryDependencies ++= {
   val akkaStreamV = "1.0-M3"
   Seq(

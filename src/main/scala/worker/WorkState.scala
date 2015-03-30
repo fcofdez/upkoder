@@ -34,7 +34,7 @@ case class WorkState private (
   def isDone(workId: String): Boolean = doneWorkIds.contains(workId)
 
   def updated(event: WorkDomainEvent): WorkState = event match {
-    case WorkAccepted(work) ⇒
+    case  WorkAccepted(work) ⇒
       copy(
         pendingWork = pendingWork enqueue work,
         acceptedWorkIds = acceptedWorkIds + work.workId)
