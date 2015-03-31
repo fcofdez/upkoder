@@ -1,12 +1,12 @@
 package worker
 
-import scala.collection.immutable.Queue
+import scala.collection.mutable.PriorityQueue
 
 
 object WorkState {
 
   def empty: WorkState = WorkState(
-    pendingWork = Queue.empty,
+    pendingWork = PriorityQueue(),
     workInProgress = Map.empty,
     acceptedWorkIds = Set.empty,
     doneWorkIds = Set.empty)
@@ -20,7 +20,7 @@ object WorkState {
 }
 
 case class WorkState private (
-  private val pendingWork: Queue[Work],
+  private val pendingWork: PriorityQueue[Work],
   private val workInProgress: Map[String, Work],
   private val acceptedWorkIds: Set[String],
   private val doneWorkIds: Set[String]) {
@@ -34,27 +34,26 @@ case class WorkState private (
   def isDone(workId: String): Boolean = doneWorkIds.contains(workId)
 
   def updated(event: WorkDomainEvent): WorkState = event match {
-    case  WorkAccepted(work) ⇒
+    case WorkAccepted(work) ⇒
+      pendingWork enqueue work
       copy(
-        pendingWork = pendingWork enqueue work,
         acceptedWorkIds = acceptedWorkIds + work.workId)
     case WorkStarted(workId) =>
-      val (work, rest) = pendingWork.dequeue
+      val work = pendingWork.dequeue
       require(workId == work.workId, s"WorkStarted expected workId $workId == ${work.workId}")
       copy(
-        workInProgress = workInProgress + (workId -> work),
-        pendingWork = rest)
+        workInProgress = workInProgress + (workId -> work))
     case WorkCompleted(workId, _) =>
       copy(
         workInProgress = workInProgress - workId,
         doneWorkIds = doneWorkIds + workId)
     case WorkerFailed(workId) =>
+      pendingWork enqueue workInProgress(workId)
       copy(
-        pendingWork = pendingWork enqueue workInProgress(workId),
         workInProgress = workInProgress - workId)
     case WorkerTimedOut(workId) =>
+      pendingWork enqueue workInProgress(workId)
       copy(
-        pendingWork = pendingWork enqueue workInProgress(workId),
         workInProgress = workInProgress - workId)
   }
 }

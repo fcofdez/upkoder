@@ -26,31 +26,19 @@ import akka.persistence.journal.leveldb.SharedLeveldbStore
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorFlowMaterializer, FlowMaterializer}
 import akka.util.Timeout
+import akka.util.Timeout
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import com.typesafe.config.ConfigFactory
 import java.io.IOException
+import org.joda.time.format.DateTimeFormatter
+import org.joda.time.format.ISODateTimeFormat
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.math._
-import spray.json.DefaultJsonProtocol
+import spray.json._
+import upkoder.upclose.models._
 import worker.Master._
-
-
-case class TokboxInfo(id: String, status: String, name: Option[String], reason: Option[String], sessionId: Option[String], partnerId: Option[Int], createdAt: Option[Long], size: Option[Int], mode: Option[String], updatedAt: Option[Long], url: Option[String], duration: Option[Int])
-
-case class UpcoderJob(id: String)
-
-case class UpcloseBroadcast(id: Int, account_id: Int)
-
-case class UpcloseCollection(collection: Seq[UpcloseBroadcast])
-
-trait Protocols extends DefaultJsonProtocol {
-  implicit val tokboxInfoFormat = jsonFormat12(TokboxInfo.apply)
-  implicit val JobFormat = jsonFormat1(UpcoderJob.apply)
-  implicit val BroadcastFormat = jsonFormat2(UpcloseBroadcast.apply)
-  implicit val UpcloseCollectionFormat = jsonFormat1(UpcloseCollection.apply)
-}
+import worker.Master
 
 
 trait Service extends Protocols {
@@ -65,10 +53,10 @@ trait Service extends Protocols {
 
   def upcloseRequest(request: HttpRequest): Future[HttpResponse] = Source.single(request).via(upcloseConnectionFlow).runWith(Sink.head)
 
-  def fetchBroadcastInfo(archive_id: String): Future[Either[String, Seq[UpcloseBroadcast]]] = {
-    upcloseRequest(RequestBuilding.Get(s"""/broadcasts""")).flatMap { response =>
+  def fetchBroadcastInfo(archive_id: String): Future[Either[String, UpcloseCollection]] = {
+    upcloseRequest(RequestBuilding.Get(s"""/broadcasts?filter={\"tokbox_archive_id\":\"$archive_id\"}""")).flatMap { response =>
       response.status match {
-        case OK => println(Unmarshal(response.entity)); Unmarshal(response.entity).to[Seq[UpcloseBroadcast]].map(Right(_))
+        case OK => Unmarshal(response.entity).to[UpcloseCollection].map(Right(_))
         case _ => Unmarshal(response.entity).to[String].flatMap { entity =>
           val error = s"Upclose request failed with status code ${response.status} and entity $entity"
           logger.error(error)
@@ -78,12 +66,13 @@ trait Service extends Protocols {
     }
   }
 
-
   val routes = {
     pathPrefix("jobs") {
       (post & entity(as[TokboxInfo])) { tokboxInfoRequest =>
         complete {
-          Created -> fetchBroadcastInfo(tokboxInfoRequest.id)
+          fetchBroadcastInfo(tokboxInfoRequest.id).map[ToResponseMarshallable]{
+            case Right(upcloseCollection) => Created -> upcloseCollection.collection.head
+            case Left(err) => NotFound -> err }
         }
       }
     }
@@ -97,11 +86,33 @@ trait Backend {
       withFallback(ConfigFactory.load())
     val system = ActorSystem("ClusterSystem", conf)
 
-    // startupSharedJournal(system, startStore = (port == 2551), path =
-    //   ActorPath.fromString("akka.tcp://ClusterSystem@127.0.0.1:2551/user/store"))
-    // val workTimeout = 2.second
-    // system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
-    //   PoisonPill, Some(role)), "master")
+    startupSharedJournal(system, startStore = (port == 2551), path =
+      ActorPath.fromString("akka.tcp://ClusterSystem@127.0.0.1:2551/user/store"))
+    val workTimeout = 2.seconds
+    system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
+      PoisonPill, Some(role)), "master")
+  }
+
+  def startupSharedJournal(system: ActorSystem, startStore: Boolean, path: ActorPath): Unit = {
+    // Start the shared journal one one node (don't crash this SPOF)
+    // This will not be needed with a distributed journal
+    if (startStore)
+      system.actorOf(Props[SharedLeveldbStore], "store")
+    // register the shared journal
+    import system.dispatcher
+    implicit val timeout = Timeout(15.seconds)
+    val f = (system.actorSelection(path) ? Identify(None))
+    f.onSuccess {
+      case ActorIdentity(_, Some(ref)) => SharedLeveldbJournal.setStore(ref, system)
+      case _ =>
+        system.log.error("Shared journal not started at {}", path)
+        system.shutdown()
+    }
+    f.onFailure {
+      case _ =>
+        system.log.error("Lookup of shared journal at {} timed out", path)
+        system.shutdown()
+    }
   }
 }
 
@@ -112,6 +123,11 @@ object Upcoder extends App with Service with Backend{
   override implicit val system = ActorSystem()
   override implicit val executor = system.dispatcher
   override implicit val materializer = ActorFlowMaterializer()
+  startBackend(2551, "backend")
+  Thread.sleep(5000)
+  startBackend(2552, "backend")
+  Thread.sleep(5000)
+
 
   override val config = ConfigFactory.load()
   override val logger = Logging(system, getClass)
