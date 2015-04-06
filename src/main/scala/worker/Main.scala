@@ -209,6 +209,6 @@ object Upcoder extends App with Backend{
 
   implicit val timeout = Timeout(5.seconds)
   // start a new HTTP server on port 8080 with our service actor as the handler
-  IO(Http) ? Http.Bind(service, interface = "localhost", port = 9000)
+  IO(Http) ? Http.Bind(service, interface = "0.0.0.0", port = 9000)
   //Http().bind(interface = "0.0.0.0", port = 9000).startHandlingWith(routes)
 }
