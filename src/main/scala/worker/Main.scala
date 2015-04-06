@@ -51,6 +51,8 @@ import upkoder.upclose.models._
 import worker.Master
 import worker.Master._
 import worker.Work._
+import worker.WorkExecutor
+import worker.Worker
 import scala.util.{Success, Failure}
 
 
@@ -98,10 +100,17 @@ class MyServiceActor extends Actor with MyService {
   // other things here, like request stream processing
   // or timeout handling
   def receive = runRoute(routes)
+  import context.dispatcher
+
 
   def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Int = {
     implicit val timeout = Timeout(5.seconds)
-    masterProxy ! Work(nextWorkId(), upcloseBroadcast.video_url)
+    println("schedule")
+    val work = Work(nextWorkId(), upcloseBroadcast.video_url)
+    (masterProxy ? work) map {
+      case Master.Ack(_) => println("asd")
+      case _ => println("nooooooo")
+    }
     1
   }
 }
@@ -128,6 +137,19 @@ trait MyService extends HttpService with Protocols {
 
 
 trait Backend {
+
+  def startWorker(port: Int): Unit = {
+    // load worker.conf
+    val conf = ConfigFactory.load("worker")
+    val system = ActorSystem("WorkerSystem", conf)
+    val initialContacts = immutableSeq(conf.getStringList("contact-points")).map {
+      case AddressFromURIString(addr) ⇒ system.actorSelection(RootActorPath(addr) / "user" / "receptionist")
+    }.toSet
+
+    val clusterClient = system.actorOf(ClusterClient.props(initialContacts), "clusterClient")
+    system.actorOf(Worker.props(clusterClient, Props[WorkExecutor]), "worker")
+  }
+
 
   def startBackend(port: Int, role: String): Unit = {
     val conf = ConfigFactory.parseString(s"akka.cluster.roles=[$role]").
@@ -168,12 +190,14 @@ trait Backend {
 
 object Upcoder extends App with Backend{
 
-  implicit val system = ActorSystem()
-  implicit val executor = system.dispatcher
   startBackend(2551, "backend")
   Thread.sleep(5000)
   startBackend(2552, "backend")
   Thread.sleep(5000)
+  startWorker(0)
+  val conf = ConfigFactory.load
+  implicit val system = ActorSystem("ClusterSystem", conf)
+  implicit val executor = system.dispatcher
 
 
   val config = ConfigFactory.load()

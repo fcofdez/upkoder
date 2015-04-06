@@ -1,6 +1,6 @@
 package worker
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorLogging}
 import java.io.File
 import java.net.URL
 import sys.process._
@@ -10,11 +10,14 @@ import awscala._, s3._
 
 case class EncodedVideo(video_url: String, thumbnail_urls: Seq[String])
 
-class WorkExecutor extends Actor {
+class WorkExecutor extends Actor with ActorLogging{
   def receive = {
     case url: String ⇒
+      log.info("Downloading {}", url)
       val filename = download_video(url)
+      log.info("Generating thumbnails {}", filename)
       val thumbnails = generateThumbnails(filename)
+      log.info("encoding  {}", filename)
       val video_url = encode(filename)
       sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
   }
