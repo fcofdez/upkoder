@@ -13,14 +13,6 @@ import akka.contrib.pattern.ClusterClient
 import akka.contrib.pattern.ClusterSingletonManager
 import akka.contrib.pattern.ClusterSingletonProxy
 import akka.event.{LoggingAdapter, Logging}
-// import akka.http.client.RequestBuilding
-// import akka.http.marshallers.sprayjson.SprayJsonSupport._
-// import akka.http.marshalling.ToResponseMarshallable
-// import akka.http.model.StatusCodes._
-// import akka.http.model.{HttpResponse, HttpRequest}
-// import akka.http.server.Directives._
-// import akka.http.unmarshalling.Unmarshal
-// import akka.http.{Http => AkkaHttp}
 import akka.io.IO
 import akka.japi.Util.immutableSeq
 import akka.pattern.ask
@@ -125,9 +117,13 @@ trait MyService extends HttpService with Protocols {
     pathPrefix("jobs") {
       (post & entity(as[TokboxInfo])) { tokboxInfoRequest =>
         complete {
-          fetchBroadcastInfo(tokboxInfoRequest.id).map[ToResponseMarshallable]{ uc =>
-            scheduleWork(uc.collection.head)
-            uc.collection.head
+          if(tokboxInfoRequest.status == "uploaded"){
+            fetchBroadcastInfo(tokboxInfoRequest.id).map[ToResponseMarshallable]{ uc =>
+              scheduleWork(uc.collection.head)
+              uc.collection.head
+            }
+          }else{
+            tokboxInfoRequest
           }
         }
       }
