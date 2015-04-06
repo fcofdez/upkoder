@@ -75,12 +75,14 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
     case MasterWorkerProtocol.WorkerRequestsWork(workerId) =>
       workers.get(workerId) match {
         case Some(s @ WorkerState(_, Idle)) =>
-          val work = workState.nextWork
-          persist(WorkStarted(work.workId)) { event =>
-            workState = workState.updated(event)
-            log.info("Giving worker {} some work {}", workerId, work.workId)
-            workers += (workerId -> s.copy(status = Busy(work.workId, Deadline.now + workTimeout)))
-            sender() ! work
+          if (workState.hasWork) {
+            val work = workState.nextWork
+            persist(WorkStarted(work.workId)) { event =>
+              workState = workState.updated(event)
+              log.info("Giving worker {} some work {}", workerId, work.workId)
+              workers += (workerId -> s.copy(status = Busy(work.workId, Deadline.now + workTimeout)))
+              sender() ! work
+            }
           }
         case _ =>
       }
