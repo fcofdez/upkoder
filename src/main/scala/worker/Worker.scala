@@ -63,8 +63,8 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
     case WorkIsReady =>
       sendToMaster(WorkerRequestsWork(workerId))
 
-    case Work(workId, archive_url, job) =>
-      log.info("Got work: {}", job)
+    case Work(workId, archive_url) =>
+      log.info("Got work: {}", archive_url)
       currentWorkId = Some(workId)
       workExecutor ! archive_url
       context.become(working)
