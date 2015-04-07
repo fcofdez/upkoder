@@ -1,4 +1,4 @@
-import akka.actor.Actor
+import akka.actor.{Actor, ActorLogging}
 import akka.actor.ActorIdentity
 import akka.actor.ActorPath
 import akka.actor.ActorSystem
@@ -57,8 +57,10 @@ object UpcloseService extends Protocols {
 
   lazy val config = ConfigFactory.load()
 
-  val apiUrl = config.getString("upclose.api.url")
-  val apiEndpoint = config.getString("upclose.api.endpoint")
+
+  val env = sys.env.get("ENV").getOrElse("dev")
+  val apiUrl = config.getString(s"upclose.$env.api.url")
+  val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
 
   lazy val pipeline = sendReceive ~> unmarshal[UpcloseCollection]
 
@@ -75,7 +77,7 @@ object UpcloseService extends Protocols {
   }
 }
 
-class MyServiceActor extends Actor with MyService {
+class MyServiceActor extends Actor with MyService with ActorLogging {
   import worker.Work
 
   // the HttpService trait defines only one abstract member, which
@@ -95,15 +97,14 @@ class MyServiceActor extends Actor with MyService {
   import context.dispatcher
 
 
-  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Int = {
+  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit = {
     implicit val timeout = Timeout(5.seconds)
-    println("schedule")
+    log.info("Scheduling")
     val work = Work(nextWorkId(), upcloseBroadcast.video_url)
     (masterProxy ? work) map {
-      case Master.Ack(_) => println("asd")
-      case _ => println("nooooooo")
+      case Master.Ack(_) => log.info("Master ack {}", upcloseBroadcast.video_url)
+      case _ => println("Master problem {}", upcloseBroadcast.video_url)
     }
-    1
   }
 }
 
@@ -111,7 +112,7 @@ class MyServiceActor extends Actor with MyService {
 trait MyService extends HttpService with Protocols {
   import UpcloseService._
 
-  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Int
+  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit
 
   val routes = {
     pathPrefix("jobs") {

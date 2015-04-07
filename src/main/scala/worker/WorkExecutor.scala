@@ -6,27 +6,39 @@ import java.net.URL
 import sys.process._
 import util.Random.nextInt
 import awscala._, s3._
+import com.typesafe.config.ConfigFactory
 
 
 case class EncodedVideo(video_url: String, thumbnail_urls: Seq[String])
 
 class WorkExecutor extends Actor with ActorLogging{
+  lazy val config = ConfigFactory.load()
+  val env = sys.env.get("ENV").getOrElse("dev")
+  val region_conf = config.getString(s"upclose.$env.s3.region")
+  implicit val s3 = S3()
+  s3.setRegion(Region(region_conf))
+
+
   def receive = {
     case url: String ⇒
       log.info("Downloading {}", url)
       val filename = download_video(url)
       log.info("Generating thumbnails {}", filename)
       val thumbnails = generateThumbnails(filename)
+      thumbnails.map { uploadToS3(_) }
+      log.info("Thumbnail urls {}", thumbnails)
       log.info("encoding  {}", filename)
       val video_url = encode(filename)
+      val s3_video_url = uploadToS3(video_url)
+      log.info("Uploaded video to s3 {}", s3_video_url)
       sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
   }
 
   def uploadToS3(filePath: String): Option[String] = {
-    implicit val s3 = S3()
     val file = new java.io.File(filePath)
-    s3.bucket("bucketname").foreach { _.put(file.getName, file) }
-    s3.bucket("bucketname").flatMap { s3.getObject(_, file.getName) } map { _.publicUrl.toString }
+    val bucket = "upclose-dev-thumbnails"
+    s3.bucket(bucket).foreach { _.put(file.getName, file) }
+    s3.bucket(bucket).flatMap { s3.getObject(_, file.getName) } map { _.publicUrl.toString }
   }
 
   def getDuration(filePath: String): Int = {
@@ -36,7 +48,7 @@ class WorkExecutor extends Actor with ActorLogging{
 
   def generateThumbnail(filePath: String, second: Int): String = {
     val outputFilePath = File.createTempFile("thumbnail-", ".jpg").getPath()
-    val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", outputFilePath).!
+    val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-vframes", "1",  "-loglevel", "quiet", outputFilePath).!
     outputFilePath
   }
 
