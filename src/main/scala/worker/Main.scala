@@ -57,7 +57,6 @@ object UpcloseService extends Protocols {
 
   lazy val config = ConfigFactory.load()
 
-
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")

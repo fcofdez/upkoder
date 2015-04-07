@@ -21,6 +21,7 @@ case class UpcloseBroadcast(id: Int, account_id: Int, cumulative_participant_cou
 case class UpcloseCollection(collection: Seq[UpcloseBroadcast])
 
 
+
 trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
   implicit object DateJsonFormat extends RootJsonFormat[DateTime] {
 

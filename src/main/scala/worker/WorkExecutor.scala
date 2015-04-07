@@ -7,9 +7,11 @@ import sys.process._
 import util.Random.nextInt
 import awscala._, s3._
 import com.typesafe.config.ConfigFactory
+import upkoder.models.FFProbeProtocols._
 
 
 case class EncodedVideo(video_url: String, thumbnail_urls: Seq[String])
+
 
 class WorkExecutor extends Actor with ActorLogging{
   lazy val config = ConfigFactory.load()
@@ -17,7 +19,6 @@ class WorkExecutor extends Actor with ActorLogging{
   val region_conf = config.getString(s"upclose.$env.s3.region")
   implicit val s3 = S3()
   s3.setRegion(Region(region_conf))
-
 
   def receive = {
     case url: String ⇒
@@ -31,6 +32,7 @@ class WorkExecutor extends Actor with ActorLogging{
       val video_url = encode(filename)
       val s3_video_url = uploadToS3(video_url)
       log.info("Uploaded video to s3 {}", s3_video_url)
+      log.info("asda, {}", getMediaInfo(filename))
       sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
   }
 
@@ -50,10 +52,16 @@ class WorkExecutor extends Actor with ActorLogging{
     val outputFilePath = File.createTempFile("thumbnail-", ".jpg").getPath()
     val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-vframes", "1",  "-loglevel", "quiet", outputFilePath).!
     outputFilePath
+ }
+
+  def getMediaInfo(filePath: String): FFProbeInfo = {
+    val ffprobe_str = Seq("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath).!!
+    ToFFProbeInfo(ffprobe_str)
   }
 
   def encode(filePath: String): String = {
     val outputFilePath = File.createTempFile("video-", ".mp4").getPath()
+    //ffprobe -v quiet -print_format json -show_format -show_streams thumb0001.png
     Seq("ffmpeg", "-i", filePath, "-strict", "experimental", "-codec:a", "aac", "-b:a", "64k", "-b:v", "1000000", outputFilePath, "-y", "-loglevel", "quiet").!
     outputFilePath
   }
