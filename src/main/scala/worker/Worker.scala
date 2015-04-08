@@ -15,13 +15,14 @@ import akka.actor.SupervisorStrategy.Restart
 import akka.actor.ActorInitializationException
 import akka.actor.DeathPactException
 
+import upkoder.models.EncodedVideo
 
 object Worker {
 
   def props(clusterClient: ActorRef, workExecutorProps: Props, registerInterval: FiniteDuration = 10.seconds): Props =
     Props(classOf[Worker], clusterClient, workExecutorProps, registerInterval)
 
-  case class WorkComplete(result: Any)
+  case class WorkComplete(result: EncodedVideo)
 }
 
 class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval: FiniteDuration)
@@ -63,15 +64,15 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
     case WorkIsReady =>
       sendToMaster(WorkerRequestsWork(workerId))
 
-    case Work(workId, archive_url) =>
-      log.info("Got work: {}", archive_url)
+    case Work(workId, upcloseBroadcast) =>
+      log.info("Got work: {}", upcloseBroadcast.video_url)
       currentWorkId = Some(workId)
-      workExecutor ! archive_url
+      workExecutor ! upcloseBroadcast
       context.become(working)
   }
 
 
-  def waitForWorkIsDoneAck(result: Any): Receive = {
+  def waitForWorkIsDoneAck(result: EncodedVideo): Receive = {
     case Ack(id) if id == workId =>
       sendToMaster(WorkerRequestsWork(workerId))
       context.setReceiveTimeout(Duration.Undefined)

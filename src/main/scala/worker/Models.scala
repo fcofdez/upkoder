@@ -12,8 +12,14 @@ case class TokboxInfo(id: String, status: String, name: Option[String], reason: 
 
 case class UpcoderJob(id: String)
 
-case class UpcloseBroadcast(id: Int, account_id: Int, cumulative_participant_count: Int, created_at: DateTime, video_url: String) extends Ordered[UpcloseBroadcast] {
+case class UpcloseBroadcast(id: Int, account_id: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String) extends Ordered[UpcloseBroadcast] {
   import scala.math.Ordered.orderingToOrdered
+
+  def video_url: String = {
+    val tokbox_api_key = this.tokbox_api_key
+    val tokbox_archive_id = this.tokbox_archive_id
+    s"https://s3.amazonaws.com/tokbox_archive/$tokbox_api_key/$tokbox_archive_id/archive.mp4"
+  }
 
   def compare(that: UpcloseBroadcast): Int = (this.cumulative_participant_count, this.created_at) compare (that.cumulative_participant_count, that.created_at)
 }
@@ -37,6 +43,6 @@ trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
 
   implicit val tokboxInfoFormat = jsonFormat12(TokboxInfo.apply)
   implicit val JobFormat = jsonFormat1(UpcoderJob.apply)
-  implicit val BroadcastFormat = jsonFormat5(UpcloseBroadcast.apply)
+  implicit val BroadcastFormat = jsonFormat6(UpcloseBroadcast.apply)
   implicit val UpcloseCollectionFormat = jsonFormat1(UpcloseCollection.apply)
 }

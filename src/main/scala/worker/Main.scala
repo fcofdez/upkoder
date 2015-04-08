@@ -44,6 +44,7 @@ import worker.Master
 import worker.Master._
 import worker.Work._
 import worker.WorkExecutor
+import worker.WorkResultConsumer
 import worker.Worker
 import scala.util.{Success, Failure}
 
@@ -99,7 +100,7 @@ class MyServiceActor extends Actor with MyService with ActorLogging {
   def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit = {
     implicit val timeout = Timeout(5.seconds)
     log.info("Scheduling")
-    val work = Work(nextWorkId(), upcloseBroadcast.video_url)
+    val work = Work(nextWorkId(), upcloseBroadcast)
     (masterProxy ? work) map {
       case Master.Ack(_) => log.info("Master ack {}", upcloseBroadcast.video_url)
       case _ => println("Master problem {}", upcloseBroadcast.video_url)
@@ -158,6 +159,7 @@ trait Backend {
     val workTimeout = 1.hour
     system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
       PoisonPill, Some(role)), "master")
+    system.actorOf(Props[WorkResultConsumer])
   }
 
   def startupSharedJournal(system: ActorSystem, startStore: Boolean, path: ActorPath): Unit = {

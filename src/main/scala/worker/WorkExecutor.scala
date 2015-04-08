@@ -8,9 +8,9 @@ import util.Random.nextInt
 import awscala._, s3._
 import com.typesafe.config.ConfigFactory
 import upkoder.models.FFProbeProtocols._
+import upkoder.models._
+import upkoder.upclose.models.UpcloseBroadcast
 
-
-case class EncodedVideo(video_url: String, thumbnail_urls: Seq[String])
 
 
 class WorkExecutor extends Actor with ActorLogging{
@@ -21,19 +21,20 @@ class WorkExecutor extends Actor with ActorLogging{
   s3.setRegion(Region(region_conf))
 
   def receive = {
-    case url: String ⇒
+    case upcloseBroadcast: UpcloseBroadcast ⇒
+      val url = upcloseBroadcast.video_url
       log.info("Downloading {}", url)
       val filename = download_video(url)
       log.info("Generating thumbnails {}", filename)
       val thumbnails = generateThumbnails(filename)
-      thumbnails.map { uploadToS3(_) }
-      log.info("Thumbnail urls {}", thumbnails)
+      val thumbs = thumbnails.map { uploadToS3(_) }
+      log.info("Thumbnail urls {}", thumbs)
       log.info("encoding  {}", filename)
       val video_url = encode(filename)
-      val s3_video_url = uploadToS3(video_url)
+      val s3_video_url = uploadToS3(video_url).getOrElse("asda")
       log.info("Uploaded video to s3 {}", s3_video_url)
       log.info("asda, {}", getMediaInfo(filename))
-      sender() ! Worker.WorkComplete(EncodedVideo(video_url, thumbnails))
+      sender() ! Worker.WorkComplete(EncodedVideo(s3_video_url, thumbs))
   }
 
   def uploadToS3(filePath: String): Option[String] = {
@@ -50,7 +51,7 @@ class WorkExecutor extends Actor with ActorLogging{
 
   def generateThumbnail(filePath: String, second: Int): String = {
     val outputFilePath = File.createTempFile("thumbnail-", ".jpg").getPath()
-    val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-vframes", "1",  "-loglevel", "quiet", outputFilePath).!
+    val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", outputFilePath).!
     outputFilePath
  }
 

@@ -1,6 +1,7 @@
 package worker
 
 import scala.collection.mutable.PriorityQueue
+import upkoder.models.EncodedVideo
 
 
 object WorkState {
@@ -14,7 +15,7 @@ object WorkState {
   trait WorkDomainEvent
   case class WorkAccepted(work: Work) extends WorkDomainEvent
   case class WorkStarted(workId: String) extends WorkDomainEvent
-  case class WorkCompleted(workId: String, result: Any) extends WorkDomainEvent
+  case class WorkCompleted(workId: String, result: EncodedVideo) extends WorkDomainEvent
   case class WorkerFailed(workId: String) extends WorkDomainEvent
   case class WorkerTimedOut(workId: String) extends WorkDomainEvent
 }
