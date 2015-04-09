@@ -75,7 +75,7 @@ class WorkExecutor extends Actor with ActorLogging{
   }
 
   def generateThumbnails(srcMedia: File, duration: Int): Seq[File] = {
-    Seq.fill(3)(nextInt(duration)).map{ generateThumbnail(srcMedia.getPath, _) }
+    Seq.fill(3)(nextInt(getDuration(srcMedia.getPath))).map{ generateThumbnail(srcMedia.getPath, _) }
   }
 
   def downloadMedia(url: String): File = {

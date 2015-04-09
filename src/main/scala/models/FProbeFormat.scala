@@ -14,7 +14,8 @@ case class FFProbeFormat(duration: Option[String], bit_rate: Option[String], for
 
 case class FFProbeInfo(streams: Seq[FFProbeStream], format: FFProbeFormat) {
   def mimeType : String = {
-    this.format.format_name match {
+    val format_name = this.format.format_name.getOrElse("")
+    format_name match {
       case msg if msg.contains("mp4") => "video/mp4"
       case msg if msg.contains("image") => "image/jpg"
       case _ => ""
