@@ -23,25 +23,30 @@ class WorkExecutor extends Actor with ActorLogging{
   def receive = {
     case upcloseBroadcast: UpcloseBroadcast ⇒
       val url = upcloseBroadcast.video_url
+      val bucket = "upclose-dev-thumbnails"
       log.info("Downloading {}", url)
-      val filename = download_video(url)
-      log.info("Generating thumbnails {}", filename)
-      val thumbnails = generateThumbnails(filename)
-      val thumbs = thumbnails.map { uploadToS3(_) }
-      log.info("Thumbnail urls {}", thumbs)
-      log.info("encoding  {}", filename)
-      val video_url = encode(filename)
-      val s3_video_url = uploadToS3(video_url).getOrElse("asda")
-      log.info("Uploaded video to s3 {}", s3_video_url)
-      log.info("asda, {}", getMediaInfo(filename))
-      sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, thumbs))
+      val srcMedia = downloadMedia(url)
+      log.info("Generating thumbnails {}", srcMedia.getPath)
+      val thumbnails = generateThumbnails(srcMedia, upcloseBroadcast.duration)
+      log.info("Generated thumbnails {}", srcMedia.getPath)
+      val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
+      log.info("thumbnails {}", thumbsInfo)
+      val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
+      log.info("final thumbnails {}", finalThumsInfo)
+      // log.info("Thumbnail urls {}", finalThumsInfo)
+      // log.info("encoding  {}", url)
+      val encodedMedia = encode(srcMedia.getPath)
+      val bucket = "upclose-dev-video"
+      val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, bucket))
+      val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
+      val x = finalThumsInfo :+ finalEncodedMediaInfo
+      log.info("End")
+      sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, x))
   }
 
-  def uploadToS3(filePath: String): Option[String] = {
-    val file = new java.io.File(filePath)
-    val bucket = "upclose-dev-thumbnails"
-    s3.bucket(bucket).foreach { _.put(file.getName, file) }
-    s3.bucket(bucket).flatMap { s3.getObject(_, file.getName) } map { _.publicUrl.toString }
+  def uploadToS3(mediaFile: File, bucket: String): Option[String] = {
+    s3.bucket(bucket).foreach { _.put(mediaFile.getName, mediaFile) }
+    s3.bucket(bucket).flatMap { s3.getObject(_, mediaFile.getName) } map { _.publicUrl.toString }
   }
 
   def getDuration(filePath: String): Int = {
@@ -49,32 +54,34 @@ class WorkExecutor extends Actor with ActorLogging{
     info.lines.filter(_.contains("duration")).map(_.replace("duration=", "")).mkString.toDouble.toInt
   }
 
-  def generateThumbnail(filePath: String, second: Int): String = {
-    val outputFilePath = File.createTempFile("thumbnail-", ".jpg").getPath()
-    val command = Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", outputFilePath).!
-    outputFilePath
+  def generateThumbnail(filePath: String, second: Int): File = {
+    val thumbnailFile = File.createTempFile("thumbnail-", ".jpg")
+    val thumbnailFilePath = thumbnailFile.getPath
+    Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", thumbnailFilePath).!!
+    thumbnailFile
  }
 
-  def getMediaInfo(filePath: String): FFProbeInfo = {
-    val ffprobe_str = Seq("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath).!!
+  def getMediaInfo(media: File): FFProbeInfo = {
+    val path = media.getPath
+    val ffprobe_str = Seq("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path).!!
     ToFFProbeInfo(ffprobe_str)
   }
 
-  def encode(filePath: String): String = {
-    val outputFilePath = File.createTempFile("video-", ".mp4").getPath()
-    //ffprobe -v quiet -print_format json -show_format -show_streams thumb0001.png
-    Seq("ffmpeg", "-i", filePath, "-strict", "experimental", "-codec:a", "aac", "-b:a", "64k", "-b:v", "1000000", outputFilePath, "-y", "-loglevel", "quiet").!
-    outputFilePath
+  def encode(filePath: String): File = {
+    val encodedFile = File.createTempFile("video-", ".mp4")
+    val encodedFilePath = encodedFile.getPath
+    Seq("ffmpeg", "-i", filePath, "-strict", "experimental", "-codec:a", "aac", "-b:a", "64k", "-b:v", "1000000", encodedFilePath, "-y", "-loglevel", "quiet").!
+    encodedFile
   }
 
-  def generateThumbnails(filePath: String): Seq[String] = {
-    Seq.fill(3)(nextInt(getDuration(filePath))).map{ second ⇒ generateThumbnail(filePath, second)}
+  def generateThumbnails(srcMedia: File, duration: Int): Seq[File] = {
+    Seq.fill(3)(nextInt(duration)).map{ generateThumbnail(srcMedia.getPath, _) }
   }
 
-  def download_video(url: String): String = {
-    val f = File.createTempFile("video", ".mp4")
-    val filename = f.getPath()
-    (new URL(url) #> f !!)
-    return filename
+  def downloadMedia(url: String): File = {
+    val file = File.createTempFile("video", ".mp4")
+    val filename = file.getPath()
+    (new URL(url) #> file !!)
+    return file
   }
 }

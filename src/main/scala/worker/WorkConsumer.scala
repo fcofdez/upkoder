@@ -63,18 +63,12 @@ class WorkResultConsumer extends Actor with ActorLogging {
   def receive = {
     case _: DistributedPubSubMediator.SubscribeAck =>
     case WorkResult(workId, result) =>
-      val ja = result.thumbnail_urls(0).getOrElse("no")
-      val x = EncodedMedia(url = ja,
-        size=8623,
-        width=640,
-        height=480,
-        bitrate=0,
-        mime_type="image/jpg",
-        broadcast_id=result.broadcast_id)
-      val a = postMediaInfo(x, result.broadcast_id)
-      a onComplete {
-        case Success(x) => println("oleeeeeeeeeeeeee {}", x)
-        case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
+      result.mediaInfo.foreach { y =>
+        val a = postMediaInfo(y, result.broadcast_id)
+        a onComplete {
+          case Success(x) => println("oleeeeeeeeeeeeee {}", x)
+          case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
+        }
       }
       log.info("Consumed result: {}", result.broadcast_id)
   }

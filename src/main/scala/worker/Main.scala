@@ -190,10 +190,10 @@ object Upcoder extends App with Backend{
 
   startBackend(2551, "backend")
   Thread.sleep(5000)
-  startBackend(2552, "backend")
-  Thread.sleep(5000)
+  // startBackend(2552, "backend")
+  // Thread.sleep(5000)
   startWorker(0)
-  startWorker(0)
+  //startWorker(0)
   val conf = ConfigFactory.load
   implicit val system = ActorSystem("ClusterSystem", conf)
   implicit val executor = system.dispatcher
