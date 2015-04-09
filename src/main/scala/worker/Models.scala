@@ -12,7 +12,7 @@ case class TokboxInfo(id: String, status: String, name: Option[String], reason: 
 
 case class UpcoderJob(id: String)
 
-case class UpcloseBroadcast(id: Int, account_id: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String) extends Ordered[UpcloseBroadcast] {
+case class UpcloseBroadcast(id: Int, account_id: Int, duration: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String) extends Ordered[UpcloseBroadcast] {
   import scala.math.Ordered.orderingToOrdered
 
   def video_url: String = {
@@ -43,6 +43,6 @@ trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
 
   implicit val tokboxInfoFormat = jsonFormat12(TokboxInfo.apply)
   implicit val JobFormat = jsonFormat1(UpcoderJob.apply)
-  implicit val BroadcastFormat = jsonFormat6(UpcloseBroadcast.apply)
+  implicit val BroadcastFormat = jsonFormat7(UpcloseBroadcast.apply)
   implicit val UpcloseCollectionFormat = jsonFormat1(UpcloseCollection.apply)
 }

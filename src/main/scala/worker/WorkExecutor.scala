@@ -34,7 +34,7 @@ class WorkExecutor extends Actor with ActorLogging{
       val s3_video_url = uploadToS3(video_url).getOrElse("asda")
       log.info("Uploaded video to s3 {}", s3_video_url)
       log.info("asda, {}", getMediaInfo(filename))
-      sender() ! Worker.WorkComplete(EncodedVideo(s3_video_url, thumbs))
+      sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, thumbs))
   }
 
   def uploadToS3(filePath: String): Option[String] = {

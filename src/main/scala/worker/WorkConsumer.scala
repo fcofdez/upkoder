@@ -48,8 +48,8 @@ object UpcloseService extends MediaJsonProtocols{
     Uri(scheme = "https", authority = auth, path = Path(apiEndpoint.replace("$id", broadcast_id)))
   }
 
-  def postMediaInfo(a: EncodedMedia): Future[HttpResponse] = {
-    upcloseRequest(Post(mediaEndpoint("12"), a))
+  def postMediaInfo(a: EncodedMedia, br_id: Int): Future[HttpResponse] = {
+    upcloseRequest(Post(mediaEndpoint(br_id.toString), a))
   }
 }
 
@@ -63,18 +63,20 @@ class WorkResultConsumer extends Actor with ActorLogging {
   def receive = {
     case _: DistributedPubSubMediator.SubscribeAck =>
     case WorkResult(workId, result) =>
-      val x = EncodedMedia(url = "https://s3.amazonaws.com/test/asdasd",
-        size=12,
-      weight=530,
-      height=480,
-      bitrate=1231,
-      broadcast_id=123)
-      val a = postMediaInfo(x)
+      val ja = result.thumbnail_urls(0).getOrElse("no")
+      val x = EncodedMedia(url = ja,
+        size=8623,
+        width=640,
+        height=480,
+        bitrate=0,
+        mime_type="image/jpg",
+        broadcast_id=result.broadcast_id)
+      val a = postMediaInfo(x, result.broadcast_id)
       a onComplete {
         case Success(x) => println("oleeeeeeeeeeeeee {}", x)
         case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
       }
-      log.info("Consumed result: {}", result.video_url)
+      log.info("Consumed result: {}", result.broadcast_id)
   }
 
 }
