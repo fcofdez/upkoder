@@ -36,8 +36,8 @@ class WorkExecutor extends Actor with ActorLogging{
       // log.info("Thumbnail urls {}", finalThumsInfo)
       // log.info("encoding  {}", url)
       val encodedMedia = encode(srcMedia.getPath)
-      val bucket = "upclose-dev-video"
-      val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, bucket))
+      val buckett = "upclose-dev-videos"
+      val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, buckett))
       val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
       val x = finalThumsInfo :+ finalEncodedMediaInfo
       log.info("End")

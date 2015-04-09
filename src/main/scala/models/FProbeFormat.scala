@@ -14,13 +14,11 @@ case class FFProbeFormat(duration: Option[String], bit_rate: Option[String], for
 
 case class FFProbeInfo(streams: Seq[FFProbeStream], format: FFProbeFormat) {
   def mimeType : String = {
-    //return "image/jpg"
-    if (this.format.format_name.contains("mp4"))
-      {
-        return "video/mp4"
-      }
-      else
-        return "image/jpg"
+    this.format.format_name match {
+      case msg if msg.contains("mp4") => "video/mp4"
+      case msg if msg.contains("image") => "image/jpg"
+      case _ => ""
+    }
   }
 
   def width: Int = {
