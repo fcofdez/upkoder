@@ -62,7 +62,7 @@ object UpcloseService extends Protocols {
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
 
-  lazy val pipeline = sendReceive ~> unmarshal[UpcloseCollection]
+  lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
 
   def upcloseRequest(request: HttpRequest): Future[UpcloseCollection] = pipeline{request}
 
@@ -156,7 +156,7 @@ trait Backend {
 
     startupSharedJournal(system, startStore = (port == 2551), path =
       ActorPath.fromString("akka.tcp://ClusterSystem@127.0.0.1:2551/user/store"))
-    val workTimeout = 1.hour
+    val workTimeout = 7.hour
     system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
       PoisonPill, Some(role)), "master")
     system.actorOf(Props[WorkResultConsumer])
