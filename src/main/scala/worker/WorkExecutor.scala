@@ -45,7 +45,7 @@ class WorkExecutor extends Actor with ActorLogging{
 
   def uploadToS3(mediaFile: File, bucket: String): Option[String] = {
     s3.bucket(bucket).foreach { _.put(mediaFile.getName, mediaFile) }
-    s3.bucket(bucket).flatMap { s3.getObject(_, mediaFile.getName) } map { _.publicUrl.toString }
+    s3.bucket(bucket).flatMap { s3.getObject(_, mediaFile.getName) } map { _.publicUrl.toString } map { _.replace("http:", "https:" }
   }
 
   def getDuration(filePath: String): Int = {
