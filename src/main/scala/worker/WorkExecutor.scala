@@ -50,13 +50,13 @@ class WorkExecutor extends Actor with ActorLogging{
 
   def getDuration(filePath: String): Int = {
     val info = Seq("ffprobe", "-i",  filePath, "-show_format", "-loglevel", "quiet")
-    info.lines.filter(_.contains("duration")).map(_.replace("duration=", "")).mkString.toDouble.toInt
+    info.lineStream.filter(_.contains("duration")).map(_.replace("duration=", "")).mkString.toDouble.toInt
   }
 
   def generateThumbnail(filePath: String, second: Int): File = {
     val thumbnailFile = File.createTempFile("thumbnail-", ".jpg")
     val thumbnailFilePath = thumbnailFile.getPath
-    Seq("ffmpeg", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", thumbnailFilePath).!!
+    Seq("ffmpeg", "-ss", "4", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", thumbnailFilePath).!!
     thumbnailFile
  }
 
