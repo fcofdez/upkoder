@@ -49,6 +49,35 @@ import worker.Worker
 import scala.util.{Success, Failure}
 
 
+class UpcloseRequester extends Actor with Protocols {
+
+  lazy val config = ConfigFactory.load()
+
+  val env = sys.env.get("ENV").getOrElse("dev")
+  val apiUrl = config.getString(s"upclose.$env.api.url")
+  val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
+
+  lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
+
+  def upcloseRequest(request: HttpRequest): Future[UpcloseCollection] = pipeline{request}
+
+  def uplcloseUri(archive_id: String): Uri = {
+    val query = Query.Cons("filter", s"""{\"tokbox_archive_id\":\"$archive_id\"}""", Query.Empty)
+    val auth = Authority(host = Host(apiUrl))
+    Uri(scheme = "https", authority = auth, path = Path(apiEndpoint), query = query)
+  }
+
+  def fetchBroadcastInfo(archive_id: String): Future[UpcloseCollection] = {
+    upcloseRequest(Get(uplcloseUri(archive_id)))
+  }
+
+  def receive: Receive = {
+    case archiveId: String => sender() ! fetchBroadcastInfo(archiveId)
+  }
+
+}
+
+
 object UpcloseService extends Protocols {
   implicit val system = ActorSystem()
   implicit val executor = system.dispatcher
