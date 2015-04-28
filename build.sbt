@@ -15,7 +15,9 @@ scalacOptions += "-feature"
 libraryDependencies ++= {
   val akkaStreamV = "1.0-M3"
   val sprayV = "1.3.3"
+  val fingerV = "1.5.2+"
   Seq(
+    "de.sciss" %% "fingertree" % fingerV,
     "org.fusesource"         % "sigar" % "1.6.4",
     "io.spray"               %%  "spray-can"     % sprayV,
     "io.spray"               %%  "spray-client"     % sprayV,

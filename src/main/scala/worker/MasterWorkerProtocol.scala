@@ -8,6 +8,7 @@ object MasterWorkerProtocol {
   case class WorkerRequestsWork(workerId: String)
   case class WorkIsDone(workerId: String, workId: String, result: EncodedVideo)
   case class WorkFailed(workerId: String, workId: String)
+  case class WorkRejected(workerId: String, workId: String)
 
   // Master -> Workers
   case object WorkIsReady

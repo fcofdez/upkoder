@@ -53,7 +53,6 @@ object UpcloseService extends Protocols {
   implicit val system = ActorSystem()
   implicit val executor = system.dispatcher
 
-  // def config: Config
   val logger = Logging(system, getClass)
 
   lazy val config = ConfigFactory.load()

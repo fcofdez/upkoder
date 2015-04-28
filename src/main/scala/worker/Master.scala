@@ -102,6 +102,19 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
         }
       }
 
+    case MasterWorkerProtocol.WorkRejected(workerId, workId) =>
+      if (workState.isDone(workId)) {
+        sender() ! MasterWorkerProtocol.Ack(workId)
+      } else if (!workState.isInProgress(workId)) {
+        log.info("Work {} not in progress, reported as done by worker {}", workId, workerId)
+      } else {
+        log.info("Work {} is done by worker {}", workId, workerId)
+        changeWorkerToIdle(workerId, workId)
+        persist(WorkRejected(workId)) { event ⇒
+          workState = workState.updated(event)
+          sender ! MasterWorkerProtocol.Ack(workId)
+        }
+      }
     case MasterWorkerProtocol.WorkFailed(workerId, workId) =>
       if (workState.isInProgress(workId)) {
         log.info("Work {} failed by worker {}", workId, workerId)

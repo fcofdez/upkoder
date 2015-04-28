@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import upkoder.models.FFProbeProtocols._
 import upkoder.models._
 import upkoder.upclose.models.UpcloseBroadcast
-
+import scala.language.postfixOps
 
 
 class WorkExecutor extends Actor with ActorLogging{
@@ -26,8 +26,11 @@ class WorkExecutor extends Actor with ActorLogging{
       val bucket = "upclose-dev-thumbnails"
       log.info("Downloading {}", url)
       val srcMedia = downloadMedia(url)
+      val duration = getDuration(srcMedia.getPath)
+      log.info("Media duration {}", duration)
+      if (duration <= 1) { sender ! Worker.WorkerRejected(upcloseBroadcast.id) }
       log.info("Generating thumbnails {}", srcMedia.getPath)
-      val thumbnails = generateThumbnails(srcMedia, upcloseBroadcast.duration)
+      val thumbnails = generateThumbnails(srcMedia, duration)
       log.info("Generated thumbnails {}", srcMedia.getPath)
       val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
       log.info("thumbnails {}", thumbsInfo)
@@ -74,7 +77,7 @@ class WorkExecutor extends Actor with ActorLogging{
   }
 
   def generateThumbnails(srcMedia: File, duration: Int): Seq[File] = {
-    Seq.fill(3)(nextInt(getDuration(srcMedia.getPath))).map{ generateThumbnail(srcMedia.getPath, _) }
+    Seq.fill(4)(nextInt(duration)) map { generateThumbnail(srcMedia.getPath, _) }
   }
 
   def downloadMedia(url: String): File = {

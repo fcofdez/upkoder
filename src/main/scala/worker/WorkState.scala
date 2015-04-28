@@ -10,11 +10,13 @@ object WorkState {
     pendingWork = PriorityQueue(),
     workInProgress = Map.empty,
     acceptedWorkIds = Set.empty,
+    rejectedWorkIds = Set.empty,
     doneWorkIds = Set.empty)
 
   trait WorkDomainEvent
   case class WorkAccepted(work: Work) extends WorkDomainEvent
   case class WorkStarted(workId: String) extends WorkDomainEvent
+  case class WorkRejected(workId: String) extends WorkDomainEvent
   case class WorkCompleted(workId: String, result: EncodedVideo) extends WorkDomainEvent
   case class WorkerFailed(workId: String) extends WorkDomainEvent
   case class WorkerTimedOut(workId: String) extends WorkDomainEvent
@@ -24,6 +26,7 @@ case class WorkState private (
   private val pendingWork: PriorityQueue[Work],
   private val workInProgress: Map[String, Work],
   private val acceptedWorkIds: Set[String],
+  private val rejectedWorkIds: Set[String],
   private val doneWorkIds: Set[String]) {
 
   import WorkState._
@@ -48,6 +51,10 @@ case class WorkState private (
       copy(
         workInProgress = workInProgress - workId,
         doneWorkIds = doneWorkIds + workId)
+    case WorkRejected(workId) =>
+      copy(
+        workInProgress = workInProgress - workId,
+        rejectedWorkIds = rejectedWorkIds + workId)
     case WorkerFailed(workId) =>
       pendingWork enqueue workInProgress(workId)
       copy(
