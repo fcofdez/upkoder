@@ -52,10 +52,14 @@ import scala.util.{Success, Failure}
 class UpcloseRequester extends Actor with Protocols {
 
   lazy val config = ConfigFactory.load()
+  import akka.pattern.pipe
+
+
 
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
+  import context.dispatcher
 
   lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
 
@@ -72,7 +76,7 @@ class UpcloseRequester extends Actor with Protocols {
   }
 
   def receive: Receive = {
-    case archiveId: String => sender() ! fetchBroadcastInfo(archiveId)
+    case archiveId: String => fetchBroadcastInfo(archiveId) pipeTo sender
   }
 
 }
@@ -214,15 +218,15 @@ trait Backend {
 
 
 object Upcoder extends App with Backend{
-
-  startBackend(2551, "backend")
-  Thread.sleep(5000)
+  import scala.concurrent.Await
+  //startBackend(2551, "backend")
+  //Thread.sleep(5000)
   // startBackend(2552, "backend")
   // Thread.sleep(5000)
-  startWorker()
+  //startWorker()
   //startWorker(0)
   val conf = ConfigFactory.load
-  implicit val system = ActorSystem("ClusterSystem", conf)
+  implicit val system = ActorSystem("ClusterSystem")
   implicit val executor = system.dispatcher
 
 
@@ -231,8 +235,11 @@ object Upcoder extends App with Backend{
 
   // create and start our service actor
   val service = system.actorOf(Props[MyServiceActor], "demo-service")
-
+  val up = system.actorOf(Props[UpcloseRequester])
   implicit val timeout = Timeout(5.seconds)
+  val f = up ? "63339e10-0946-4242-921c-29b50c03e22d"
+  val result = Await.result(f, timeout.duration).asInstanceOf[UpcloseCollection]
+  println(result)
   // start a new HTTP server on port 8080 with our service actor as the handler
   IO(Http) ? Http.Bind(service, interface = "0.0.0.0", port = 9000)
 }
