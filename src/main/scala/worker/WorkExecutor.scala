@@ -24,18 +24,12 @@ class WorkExecutor extends Actor with ActorLogging{
     case upcloseBroadcast: UpcloseBroadcast ⇒
       val url = upcloseBroadcast.video_url
       val bucket = "upclose-dev-thumbnails"
-      log.info("Downloading {}", url)
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
-      log.info("Media duration {}", duration)
       if (duration <= 1) { sender ! Worker.WorkerRejected(upcloseBroadcast.id) }
-      log.info("Generating thumbnails {}", srcMedia.getPath)
       val thumbnails = generateThumbnails(srcMedia, duration)
-      log.info("Generated thumbnails {}", srcMedia.getPath)
       val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
-      log.info("thumbnails {}", thumbsInfo)
       val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
-      log.info("final thumbnails {}", finalThumsInfo)
       val encodedMedia = encode(srcMedia.getPath)
       val buckett = "upclose-dev-videos"
       val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, buckett))
@@ -82,7 +76,6 @@ class WorkExecutor extends Actor with ActorLogging{
 
   def downloadMedia(url: String): File = {
     val file = File.createTempFile("video", ".mp4")
-    val filename = file.getPath()
     (new URL(url) #> file !!)
     return file
   }

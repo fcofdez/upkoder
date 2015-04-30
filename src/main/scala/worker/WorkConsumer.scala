@@ -1,6 +1,5 @@
 package worker
 
-import scala.concurrent.duration._
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.ActorLogging
@@ -16,10 +15,6 @@ import spray.http._
 import spray.http.Uri._
 import spray.httpx.{SprayJsonSupport, RequestBuilding}
 import spray.httpx.marshalling.ToResponseMarshallable
-import spray.httpx.unmarshalling._
-import spray.json._
-import spray.routing._
-import spray.util._
 import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
 
 
@@ -66,7 +61,7 @@ class WorkResultConsumer extends Actor with ActorLogging {
       result.mediaInfo.foreach { y =>
         val a = postMediaInfo(y, result.broadcast_id)
         a onComplete {
-          case Success(x) => println("oleeeeeeeeeeeeee {}", x)
+          case Success(x) => log.info("oleeeeeeeeeeeeee {}", x)
           case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
         }
       }

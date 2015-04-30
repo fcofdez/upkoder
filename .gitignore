@@ -1,3 +1,4 @@
 target/
 journal/
 .ensime
+log/
