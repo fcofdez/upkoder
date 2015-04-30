@@ -1,4 +1,4 @@
-package services.upclose
+package upkoder.services.upclose
 
 import akka.actor.{Actor, ActorLogging}
 import akka.actor.ActorIdentity
@@ -39,14 +39,12 @@ import spray.routing._
 import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
 import upkoder.upclose.models._
 import worker.Master
-import worker.WorkExecutor
-import worker.WorkResultConsumer
 import worker.Worker
 import scala.util.{Success, Failure}
 
 
 object UpcloseService extends Protocols {
-  implicit val system = ActorSystem()
+  implicit val system = ActorSystem("ServiceSystem")
   implicit val executor = system.dispatcher
 
   val logger = Logging(system, getClass)

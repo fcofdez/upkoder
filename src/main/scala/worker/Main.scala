@@ -28,14 +28,8 @@ import org.joda.time.format.ISODateTimeFormat
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import spray.can.Http
-import spray.client.pipelining._
-import spray.http._
-import spray.http.Uri._
 import spray.httpx.{SprayJsonSupport, RequestBuilding}
 import spray.httpx.marshalling.ToResponseMarshallable
-import spray.routing._
-import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
-import upkoder.upclose.models._
 import worker.Master
 import worker.WorkExecutor
 import worker.WorkResultConsumer
@@ -70,7 +64,7 @@ trait Backend {
     system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
       PoisonPill, Some(role)), "master")
 
-    if (port == 2551){
+    if (port == 2551) {
       system.actorOf(Props[WorkResultConsumer])
     }
 
@@ -125,7 +119,7 @@ object Upcoder extends App with Backend{
   if (role == "master") {
     startMaster()
   } else {
-    nProc = Runtime.getRuntime().availableProcessors()
-    Seq.fill(nProc * 2) forEach { startWorker() }
+    val nProc = Runtime.getRuntime().availableProcessors()
+    Seq.fill(nProc * 2)(0) map { port => startWorker() }
   }
 }
