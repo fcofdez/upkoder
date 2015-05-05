@@ -2,3 +2,4 @@ target/
 journal/
 .ensime
 log/
+src/main/resources/credentials.conf
