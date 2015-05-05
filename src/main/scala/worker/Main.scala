@@ -106,8 +106,8 @@ trait Backend {
   def startMaster(): Unit = {
     startBackend(2551, "backend")
     Thread.sleep(5000)
-    startBackend(2552, "backend")
-    Thread.sleep(5000)
+    // startBackend(2552, "backend")
+    // Thread.sleep(5000)
     startHttpService()
   }
 }

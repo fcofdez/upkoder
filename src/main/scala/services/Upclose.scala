@@ -38,13 +38,14 @@ import spray.httpx.marshalling.ToResponseMarshallable
 import spray.routing._
 import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
 import upkoder.upclose.models._
+import upkoder.models._
 import worker.Master
 import worker.Worker
 import scala.util.{Success, Failure}
 
 
-object UpcloseService extends Protocols {
-  implicit val system = ActorSystem("ServiceSystem")
+object UpcloseService extends Protocols with MediaJsonProtocols{
+  implicit val system = ActorSystem("ClusterSystem")
   implicit val executor = system.dispatcher
 
   val logger = Logging(system, getClass)
@@ -54,8 +55,24 @@ object UpcloseService extends Protocols {
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
+  val apiPostEndpoint = config.getString(s"upclose.$env.api.post_endpoint")
 
   lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
+
+  lazy val postPipeline = (
+    addHeader("Authorization", "Client 25638abf-fa27-44c8-9a41-2a65ec39ddf") ~> sendReceive
+  )
+
+  def upclosePostRequest(request: HttpRequest): Future[HttpResponse] = postPipeline{request}
+
+  def mediaEndpoint(broadcast_id: String): Uri = {
+    val auth = Authority(host = Host(apiUrl))
+    Uri(scheme = "https", authority = auth, path = Path(apiPostEndpoint.replace("$id", broadcast_id)))
+  }
+
+  def postMediaInfo(encMedia: EncodedMedia, br_id: Int): Future[HttpResponse] = {
+    upclosePostRequest(Post(mediaEndpoint(br_id.toString), encMedia))
+  }
 
   def upcloseRequest(request: HttpRequest): Future[UpcloseCollection] = pipeline{request}
 
@@ -114,7 +131,19 @@ trait UpcoderService extends HttpService with Protocols {
         complete {
           if(tokboxInfoRequest.status == "uploaded"){
             fetchBroadcastInfo(tokboxInfoRequest.id).map[ToResponseMarshallable]{ uc =>
-              scheduleWork(uc.collection.head)
+              val broadcast = uc.collection.head
+              scheduleWork(broadcast)
+              val encMedia = EncodedMedia(url=broadcast.video_url,
+                width=640,
+                height=480,
+                size=broadcast.size,
+                mime_type="video/mp4",
+                broadcast_id=broadcast.id)
+              val futurePost = postMediaInfo(encMedia, broadcast.id)
+              futurePost onComplete {
+                case Success(x) => println("Success first Post {}", x)
+                case Failure(e) => println("Error first post {}", e.getMessage)
+              }
               uc.collection.head
             }
           }else{

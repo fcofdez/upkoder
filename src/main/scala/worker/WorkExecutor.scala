@@ -17,6 +17,8 @@ class WorkExecutor extends Actor with ActorLogging{
   lazy val config = ConfigFactory.load()
   val env = sys.env.get("ENV").getOrElse("dev")
   val region_conf = config.getString(s"upclose.$env.s3.region")
+  val thumbBucket = config.getString(s"upclose.$env.s3.region")
+  val videoBucket = config.getString(s"upclose.$env.s3.region")
   implicit val s3 = S3()
   s3.setRegion(Region(region_conf))
 
@@ -26,18 +28,21 @@ class WorkExecutor extends Actor with ActorLogging{
       val bucket = "upclose-dev-thumbnails"
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
-      if (duration <= 1) { sender ! Worker.WorkerRejected(upcloseBroadcast.id) }
-      val thumbnails = generateThumbnails(srcMedia, duration)
-      val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
-      val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
-      val encodedMedia = encode(srcMedia.getPath)
-      val buckett = "upclose-dev-videos"
-      val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, buckett))
-      val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
-      val x = finalThumsInfo :+ finalEncodedMediaInfo
-      thumbnails.foreach { _.delete }
-      encodedMedia.delete
-      sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, x))
+      if (duration <= 1)
+        sender ! Worker.WorkerRejected(upcloseBroadcast.id)
+      else {
+        val thumbnails = generateThumbnails(srcMedia, duration)
+        val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
+        val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
+        val encodedMedia = encode(srcMedia.getPath)
+        val buckett = "upclose-dev-videos"
+        val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, buckett))
+        val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
+        val x = finalThumsInfo :+ finalEncodedMediaInfo
+        thumbnails.foreach { _.delete }
+        encodedMedia.delete
+        sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, x))
+      }
   }
 
   def uploadToS3(mediaFile: File, bucket: String): Option[String] = {

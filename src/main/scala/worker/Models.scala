@@ -15,6 +15,10 @@ case class UpcoderJob(id: String)
 case class UpcloseBroadcast(id: Int, account_id: Int, duration: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String) extends Ordered[UpcloseBroadcast] {
   import scala.math.Ordered.orderingToOrdered
 
+  def size: Int = {
+    this.duration * 141356
+  }
+
   def video_url: String = {
     val tokbox_api_key = this.tokbox_api_key
     val tokbox_archive_id = this.tokbox_archive_id

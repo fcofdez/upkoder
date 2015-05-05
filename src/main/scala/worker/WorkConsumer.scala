@@ -61,8 +61,8 @@ class WorkResultConsumer extends Actor with ActorLogging {
       result.mediaInfo.foreach { y =>
         val a = postMediaInfo(y, result.broadcast_id)
         a onComplete {
-          case Success(x) => log.info("oleeeeeeeeeeeeee {}", x)
-          case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
+          case Success(x) => log.info("Success Post {}", x)
+          case Failure(e) => log.info("Error post {}", e.getMessage)
         }
       }
       log.info("Consumed result: {}", result.broadcast_id)
