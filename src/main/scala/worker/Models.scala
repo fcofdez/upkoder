@@ -45,7 +45,7 @@ case class UpcloseBroadcast(id: Int, title: Option[String], duration: Int, cumul
     val accountID = this.account.id
     val accountUsername = Slug(this.account.username)
     val broadcastID = this.id
-    val broadcastTitle = Slug(this.title.getOrElse(""))
+    val broadcastTitle = Slug(this.title.getOrElse("untitled"))
     s"""$accountID-$accountUsername/$broadcastID-$broadcastTitle/"""
   }
 

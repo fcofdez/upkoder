@@ -54,7 +54,7 @@ class WorkExecutor extends Actor with ActorLogging{
   }
 
   def generateThumbnail(filePath: String, second: Int): File = {
-    val thumbnailFile = File.createTempFile("thumbnail-", ".jpg")
+    val thumbnailFile = File.createTempFile("upclose-", ".jpg")
     val thumbnailFilePath = thumbnailFile.getPath
     Seq("ffmpeg", "-ss", "4", "-i", filePath, "-deinterlace", "-an", "-ss", second.toString, "-t", "00:00:01", "-r", "1", "-y", "-vcodec", "mjpeg", "-f", "mjpeg", "-loglevel", "quiet", thumbnailFilePath).!!
     thumbnailFile
