@@ -27,13 +27,15 @@ object UpcloseService extends MediaJsonProtocols{
   val logger = Logging(system, getClass)
 
   lazy val config = ConfigFactory.load()
+  lazy val credentialsConfig = ConfigFactory.load("credentials")
+
 
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.post_endpoint")
 
   val pipeline = (
-    addHeader("Authorization", "Client 25638abf-fa27-44c8-9a41-2a65ec39ddf") ~> sendReceive
+    addHeader("Authorization", credentialsConfig.getString("postCredentials")) ~> sendReceive
   )
 
   def upcloseRequest(request: HttpRequest): Future[HttpResponse] = pipeline{request}

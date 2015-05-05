@@ -8,15 +8,53 @@ import scala.math._
 import spray.httpx.SprayJsonSupport
 
 
+
+object Slug {
+  def apply(input:String) = slugify(input)
+
+  def slugify(input: String): String = {
+    import java.text.Normalizer
+    Normalizer.normalize(input, Normalizer.Form.NFD)
+      .replaceAll("[^\\w\\s-]", "") // Remove all non-word, non-space or non-dash characters
+      .replace('-', ' ')            // Replace dashes with spaces
+      .trim                         // Trim leading/trailing whitespace (including what used to be leading/trailing dashes)
+      .replaceAll("\\s+", "_")      // Replace whitespace (including newlines and repetitions) with single dashes
+      .toLowerCase                  // Lowercase the final results
+  }
+}
+
+
 case class TokboxInfo(id: String, status: String, name: Option[String], reason: Option[String], sessionId: Option[String], partnerId: Option[Int], createdAt: Option[Long], size: Option[Int], mode: Option[String], updatedAt: Option[Long], url: Option[String], duration: Option[Int])
 
 case class UpcoderJob(id: String)
 
-case class UpcloseBroadcast(id: Int, account_id: Int, duration: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String) extends Ordered[UpcloseBroadcast] {
+case class UpcloseAccount(id: Int, username: String)
+
+case class UpcloseBroadcast(id: Int, title: Option[String], duration: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String, account: UpcloseAccount) extends Ordered[UpcloseBroadcast] {
   import scala.math.Ordered.orderingToOrdered
 
   def size: Int = {
     this.duration * 141356
+  }
+
+  def username : String = {
+    this.account.username
+  }
+
+  def archiveName : String = {
+    val accountID = this.account.id
+    val accountUsername = Slug(this.account.username)
+    val broadcastID = this.id
+    val broadcastTitle = Slug(this.title.getOrElse(""))
+    s"""$accountID-$accountUsername/$broadcastID-$broadcastTitle/"""
+  }
+
+  def thumbName(fileName:String): String = {
+    this.archiveName + fileName
+  }
+
+  def videoArchiveName: String = {
+    this.archiveName + "video.mp4"
   }
 
   def video_url: String = {
@@ -28,8 +66,8 @@ case class UpcloseBroadcast(id: Int, account_id: Int, duration: Int, cumulative_
   def compare(that: UpcloseBroadcast): Int = (this.cumulative_participant_count, this.created_at) compare (that.cumulative_participant_count, that.created_at)
 }
 
-case class UpcloseCollection(collection: Seq[UpcloseBroadcast])
 
+case class UpcloseCollection(collection: Seq[UpcloseBroadcast])
 
 
 trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
@@ -47,6 +85,7 @@ trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
 
   implicit val tokboxInfoFormat = jsonFormat12(TokboxInfo.apply)
   implicit val JobFormat = jsonFormat1(UpcoderJob.apply)
-  implicit val BroadcastFormat = jsonFormat7(UpcloseBroadcast.apply)
+  implicit val AccountFormat = jsonFormat2(UpcloseAccount.apply)
+  implicit val BroadcastFormat = jsonFormat8(UpcloseBroadcast.apply)
   implicit val UpcloseCollectionFormat = jsonFormat1(UpcloseCollection.apply)
 }

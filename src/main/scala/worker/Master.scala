@@ -108,7 +108,7 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
       } else if (!workState.isInProgress(workId)) {
         log.info("Work {} not in progress, reported as done by worker {}", workId, workerId)
       } else {
-        log.info("Work {} is done by worker {}", workId, workerId)
+        log.info("Work {} is Rejected by worker {}", workId, workerId)
         changeWorkerToIdle(workerId, workId)
         persist(WorkRejected(workId)) { event ⇒
           workState = workState.updated(event)

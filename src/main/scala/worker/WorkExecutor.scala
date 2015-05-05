@@ -17,37 +17,35 @@ class WorkExecutor extends Actor with ActorLogging{
   lazy val config = ConfigFactory.load()
   val env = sys.env.get("ENV").getOrElse("dev")
   val region_conf = config.getString(s"upclose.$env.s3.region")
-  val thumbBucket = config.getString(s"upclose.$env.s3.region")
-  val videoBucket = config.getString(s"upclose.$env.s3.region")
+  val thumbBucket = config.getString(s"upclose.$env.s3.bucket.thumbs")
+  val videoBucket = config.getString(s"upclose.$env.s3.bucket.videos")
   implicit val s3 = S3()
   s3.setRegion(Region(region_conf))
 
   def receive = {
     case upcloseBroadcast: UpcloseBroadcast ⇒
       val url = upcloseBroadcast.video_url
-      val bucket = "upclose-dev-thumbnails"
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
       if (duration <= 1)
         sender ! Worker.WorkerRejected(upcloseBroadcast.id)
       else {
         val thumbnails = generateThumbnails(srcMedia, duration)
-        val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, bucket)) }
+        val thumbsInfo = thumbnails map { x => getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, thumbBucket, upcloseBroadcast.thumbName(x.getName))) }
         val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
         val encodedMedia = encode(srcMedia.getPath)
-        val buckett = "upclose-dev-videos"
-        val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, buckett))
+        val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, videoBucket, upcloseBroadcast.videoArchiveName))
         val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
-        val x = finalThumsInfo :+ finalEncodedMediaInfo
+        val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
         thumbnails.foreach { _.delete }
         encodedMedia.delete
-        sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, x))
+        sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, mediaInfo))
       }
   }
 
-  def uploadToS3(mediaFile: File, bucket: String): Option[String] = {
-    s3.bucket(bucket).foreach { _.put(mediaFile.getName, mediaFile) }
-    s3.bucket(bucket).flatMap { s3.getObject(_, mediaFile.getName) } map { _.publicUrl.toString }
+  def uploadToS3(mediaFile: File, bucket: String, fileName: String): Option[String] = {
+    s3.bucket(bucket).foreach { _.put(fileName, mediaFile) }
+    s3.bucket(bucket).flatMap { s3.getObject(_, fileName) } map { _.publicUrl.toString } map { _.replace("http:", "https:") }
   }
 
   def getDuration(filePath: String): Int = {

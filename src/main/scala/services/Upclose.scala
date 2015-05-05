@@ -51,16 +51,19 @@ object UpcloseService extends Protocols with MediaJsonProtocols{
   val logger = Logging(system, getClass)
 
   lazy val config = ConfigFactory.load()
+  lazy val credentialsConfig = ConfigFactory.load("credentials")
 
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
   val apiPostEndpoint = config.getString(s"upclose.$env.api.post_endpoint")
+  lazy val getCredentials = credentialsConfig.getString("getCredentials")
+  lazy val postCredentials = credentialsConfig.getString("postCredentials")
 
-  lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
+  lazy val pipeline = addHeader("Authorization", getCredentials) ~> sendReceive ~> unmarshal[UpcloseCollection]
 
   lazy val postPipeline = (
-    addHeader("Authorization", "Client 25638abf-fa27-44c8-9a41-2a65ec39ddf") ~> sendReceive
+    addHeader("Authorization", postCredentials) ~> sendReceive
   )
 
   def upclosePostRequest(request: HttpRequest): Future[HttpResponse] = postPipeline{request}
