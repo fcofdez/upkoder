@@ -39,6 +39,7 @@ import spray.routing._
 import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
 import upkoder.upclose.models._
 import upkoder.models._
+import worker._
 import worker.Master
 import worker.Worker
 import scala.util.{Success, Failure}
@@ -92,7 +93,7 @@ object UpcloseService extends Protocols with MediaJsonProtocols{
 
 
 class UpcoderServiceActor extends Actor with UpcoderService with ActorLogging {
-  import worker.Work
+  import worker.{Work, RequestSystemInfo, SystemState}
 
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
@@ -110,6 +111,11 @@ class UpcoderServiceActor extends Actor with UpcoderService with ActorLogging {
   def receive = runRoute(routes)
   import context.dispatcher
 
+  def getInfo(): Future[Any] = {
+    implicit val timeout = Timeout(5.seconds)
+    val req = RequestSystemInfo()
+    (masterProxy ? req)
+  }
 
   def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit = {
     implicit val timeout = Timeout(5.seconds)
@@ -123,10 +129,13 @@ class UpcoderServiceActor extends Actor with UpcoderService with ActorLogging {
 }
 
 
-trait UpcoderService extends HttpService with Protocols {
+
+trait UpcoderService extends HttpService with Protocols with SystemStateProtocols {
   import UpcloseService._
+  import worker.SystemState
 
   def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit
+  def getInfo(): Future[Any]
 
   val routes = {
     pathPrefix("jobs") {
@@ -144,8 +153,8 @@ trait UpcoderService extends HttpService with Protocols {
                 broadcast_id=broadcast.id)
               val futurePost = postMediaInfo(encMedia, broadcast.id)
               futurePost onComplete {
-                case Success(x) => println("Success first Post {}", x)
-                case Failure(e) => println("Error first post {}", e.getMessage)
+                case Success(_) =>
+                case Failure(_) => 
               }
               uc.collection.head
             }
@@ -156,7 +165,7 @@ trait UpcoderService extends HttpService with Protocols {
       } ~
       get {
         complete {
-          "hola"
+          getInfo().map[ToResponseMarshallable]{_.asInstanceOf[SystemState]}
         }
       }
     }

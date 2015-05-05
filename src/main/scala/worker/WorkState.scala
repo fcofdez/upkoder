@@ -1,8 +1,9 @@
 package worker
 
 import scala.collection.mutable.PriorityQueue
+import spray.json._
 import upkoder.models.EncodedVideo
-
+import spray.httpx.SprayJsonSupport
 
 object WorkState {
 
@@ -22,6 +23,12 @@ object WorkState {
   case class WorkerTimedOut(workId: String) extends WorkDomainEvent
 }
 
+case class SystemState(pendingWork: Int, doneWork: Int, inProgressWork: Int)
+
+trait SystemStateProtocols extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val SystemStateFormat = jsonFormat3(SystemState.apply)
+}
+
 case class WorkState private (
   private val pendingWork: PriorityQueue[Work],
   private val workInProgress: Map[String, Work],
@@ -36,6 +43,11 @@ case class WorkState private (
   def isAccepted(workId: String): Boolean = acceptedWorkIds.contains(workId)
   def isInProgress(workId: String): Boolean = workInProgress.contains(workId)
   def isDone(workId: String): Boolean = doneWorkIds.contains(workId)
+  def status(): SystemState = {
+    SystemState(pendingWork=pendingWork.size,
+      doneWork=doneWorkIds.size,
+      inProgressWork=workInProgress.size)
+  }
 
   def updated(event: WorkDomainEvent): WorkState = event match {
     case WorkAccepted(work) ⇒

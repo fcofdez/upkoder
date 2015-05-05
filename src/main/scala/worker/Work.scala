@@ -11,3 +11,5 @@ case class Work(workId: String, broadcast: UpcloseBroadcast) extends Ordered[Wor
 }
 
 case class WorkResult(workId: String, result: EncodedVideo)
+
+case class RequestSystemInfo()

@@ -136,6 +136,9 @@ class Master(workTimeout: FiniteDuration) extends PersistentActor with ActorLogg
         }
       }
 
+    case _: RequestSystemInfo =>
+      sender() ! workState.status
+
     case CleanupTick =>
       for ((workerId, s @ WorkerState(_, Busy(workId, timeout))) ← workers) {
         if (timeout.isOverdue) {
