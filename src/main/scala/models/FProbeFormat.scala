@@ -3,7 +3,6 @@ package upkoder.models
 import spray.json._
 import spray.httpx.SprayJsonSupport
 import java.io.File
-import upkoder.models._
 
 
 case class FFProbeStream(codec_type: Option[String], width: Option[Int], height: Option[Int])

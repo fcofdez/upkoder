@@ -1,6 +1,5 @@
 package worker
 
-import scala.concurrent.duration._
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.ActorLogging
@@ -16,10 +15,6 @@ import spray.http._
 import spray.http.Uri._
 import spray.httpx.{SprayJsonSupport, RequestBuilding}
 import spray.httpx.marshalling.ToResponseMarshallable
-import spray.httpx.unmarshalling._
-import spray.json._
-import spray.routing._
-import spray.util._
 import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
 
 
@@ -32,13 +27,15 @@ object UpcloseService extends MediaJsonProtocols{
   val logger = Logging(system, getClass)
 
   lazy val config = ConfigFactory.load()
+  lazy val credentialsConfig = ConfigFactory.load("credentials")
+
 
   val env = sys.env.get("ENV").getOrElse("dev")
   val apiUrl = config.getString(s"upclose.$env.api.url")
   val apiEndpoint = config.getString(s"upclose.$env.api.post_endpoint")
 
   val pipeline = (
-    addHeader("Authorization", "Client 25638abf-fa27-44c8-9a41-2a65ec39ddf") ~> sendReceive
+    addHeader("Authorization", credentialsConfig.getString("postCredentials")) ~> sendReceive
   )
 
   def upcloseRequest(request: HttpRequest): Future[HttpResponse] = pipeline{request}
@@ -66,8 +63,8 @@ class WorkResultConsumer extends Actor with ActorLogging {
       result.mediaInfo.foreach { y =>
         val a = postMediaInfo(y, result.broadcast_id)
         a onComplete {
-          case Success(x) => println("oleeeeeeeeeeeeee {}", x)
-          case Failure(e) => log.info("noooooooooooooo {}", e.getMessage)
+          case Success(x) => log.info("Success Post {}", x)
+          case Failure(e) => log.info("Error post {}", e.getMessage)
         }
       }
       log.info("Consumed result: {}", result.broadcast_id)

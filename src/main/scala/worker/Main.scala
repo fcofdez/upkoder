@@ -27,116 +27,20 @@ import org.joda.time.format.DateTimeFormatter
 import org.joda.time.format.ISODateTimeFormat
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import scala.math._
 import spray.can.Http
-import spray.client.pipelining._
-import spray.http._
-import spray.http.Uri._
 import spray.httpx.{SprayJsonSupport, RequestBuilding}
 import spray.httpx.marshalling.ToResponseMarshallable
-import spray.httpx.unmarshalling._
-import spray.json._
-import spray.routing._
-import spray.util._
-import spray.routing.{RoutingSettings, RejectionHandler, ExceptionHandler, HttpService}
-import upkoder.upclose.models._
 import worker.Master
-import worker.Master._
-import worker.Work._
 import worker.WorkExecutor
 import worker.WorkResultConsumer
 import worker.Worker
 import scala.util.{Success, Failure}
-
-
-object UpcloseService extends Protocols {
-  implicit val system = ActorSystem()
-  implicit val executor = system.dispatcher
-
-  // def config: Config
-  val logger = Logging(system, getClass)
-
-  lazy val config = ConfigFactory.load()
-
-  val env = sys.env.get("ENV").getOrElse("dev")
-  val apiUrl = config.getString(s"upclose.$env.api.url")
-  val apiEndpoint = config.getString(s"upclose.$env.api.endpoint")
-
-  lazy val pipeline = addHeader("Authorization", "") ~> sendReceive ~> unmarshal[UpcloseCollection]
-
-  def upcloseRequest(request: HttpRequest): Future[UpcloseCollection] = pipeline{request}
-
-  def uplcloseUri(archive_id: String): Uri = {
-    val query = Query.Cons("filter", s"""{\"tokbox_archive_id\":\"$archive_id\"}""", Query.Empty)
-    val auth = Authority(host = Host(apiUrl))
-    Uri(scheme = "https", authority = auth, path = Path(apiEndpoint), query = query)
-  }
-
-  def fetchBroadcastInfo(archive_id: String): Future[UpcloseCollection] = {
-    upcloseRequest(Get(uplcloseUri(archive_id)))
-  }
-}
-
-class MyServiceActor extends Actor with MyService with ActorLogging {
-  import worker.Work
-
-  // the HttpService trait defines only one abstract member, which
-  // connects the services environment to the enclosing actor or test
-  implicit def actorRefFactory = context
-  val masterProxy = context.actorOf(ClusterSingletonProxy.props(
-    singletonPath = "/user/master/active",
-    role = Some("backend")),
-    name = "masterProxy")
-
-  def nextWorkId(): String = UUID.randomUUID().toString
-
-  // this actor only runs our route, but you could add
-  // other things here, like request stream processing
-  // or timeout handling
-  def receive = runRoute(routes)
-  import context.dispatcher
-
-
-  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit = {
-    implicit val timeout = Timeout(5.seconds)
-    log.info("Scheduling")
-    val work = Work(nextWorkId(), upcloseBroadcast)
-    (masterProxy ? work) map {
-      case Master.Ack(_) => log.info("Master ack {}", upcloseBroadcast.video_url)
-      case _ => println("Master problem {}", upcloseBroadcast.video_url)
-    }
-  }
-}
-
-
-trait MyService extends HttpService with Protocols {
-  import UpcloseService._
-
-  def scheduleWork(upcloseBroadcast: UpcloseBroadcast): Unit
-
-  val routes = {
-    pathPrefix("jobs") {
-      (post & entity(as[TokboxInfo])) { tokboxInfoRequest =>
-        complete {
-          if(tokboxInfoRequest.status == "uploaded"){
-            fetchBroadcastInfo(tokboxInfoRequest.id).map[ToResponseMarshallable]{ uc =>
-              scheduleWork(uc.collection.head)
-              uc.collection.head
-            }
-          }else{
-            tokboxInfoRequest
-          }
-        }
-      }
-    }
-  }
-}
+import upkoder.services.upclose._
 
 
 trait Backend {
 
-  def startWorker(port: Int): Unit = {
-    // load worker.conf
+  def startWorker(): Unit = {
     val conf = ConfigFactory.load("worker")
     val system = ActorSystem("WorkerSystem", conf)
     val initialContacts = immutableSeq(conf.getStringList("contact-points")).map {
@@ -159,7 +63,11 @@ trait Backend {
     val workTimeout = 7.hour
     system.actorOf(ClusterSingletonManager.props(Master.props(workTimeout), "active",
       PoisonPill, Some(role)), "master")
-    system.actorOf(Props[WorkResultConsumer])
+
+    if (port == 2551) {
+      system.actorOf(Props[WorkResultConsumer])
+    }
+
   }
 
   def startupSharedJournal(system: ActorSystem, startStore: Boolean, path: ActorPath): Unit = {
@@ -183,30 +91,35 @@ trait Backend {
         system.shutdown()
     }
   }
+
+  def startHttpService(): Unit = {
+    val conf = ConfigFactory.load
+    implicit val system = ActorSystem("ClusterSystem", conf)
+
+    val service = system.actorOf(Props[UpcoderServiceActor], "upcoder-service")
+
+    implicit val timeout = Timeout(5.seconds)
+    // start a new HTTP server on port 8080 with our service actor as the handler
+    IO(Http) ? Http.Bind(service, interface = "0.0.0.0", port = 9000)
+  }
+
+  def startMaster(): Unit = {
+    startBackend(2551, "backend")
+    Thread.sleep(5000)
+    // startBackend(2552, "backend")
+    // Thread.sleep(5000)
+    startHttpService()
+  }
 }
 
 
 object Upcoder extends App with Backend{
 
-  startBackend(2551, "backend")
-  Thread.sleep(5000)
-  // startBackend(2552, "backend")
-  // Thread.sleep(5000)
-  startWorker(0)
-  //startWorker(0)
-  val conf = ConfigFactory.load
-  implicit val system = ActorSystem("ClusterSystem", conf)
-  implicit val executor = system.dispatcher
-
-
-  val config = ConfigFactory.load()
-  val logger = Logging(system, getClass)
-
-  // create and start our service actor
-  val service = system.actorOf(Props[MyServiceActor], "demo-service")
-
-  implicit val timeout = Timeout(5.seconds)
-  // start a new HTTP server on port 8080 with our service actor as the handler
-  IO(Http) ? Http.Bind(service, interface = "0.0.0.0", port = 9000)
-  //Http().bind(interface = "0.0.0.0", port = 9000).startHandlingWith(routes)
+  val role = sys.env.get("ROLE").getOrElse("worker")
+  if (role == "master") {
+    startMaster()
+  } else {
+    val nProc = Runtime.getRuntime().availableProcessors()
+    Seq.fill(nProc * 2)(0) map { port => startWorker() }
+  }
 }

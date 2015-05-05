@@ -23,6 +23,7 @@ object Worker {
     Props(classOf[Worker], clusterClient, workExecutorProps, registerInterval)
 
   case class WorkComplete(result: EncodedVideo)
+  case class WorkerRejected(workId: Int)
 }
 
 class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval: FiniteDuration)
@@ -71,6 +72,16 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
       context.become(working)
   }
 
+  def waitForWorkRejectedAck() : Receive = {
+    case Ack(id) if id == workId =>
+      sendToMaster(WorkerRequestsWork(workerId))
+      context.setReceiveTimeout(Duration.Undefined)
+      context.become(idle)
+    case ReceiveTimeout =>
+      log.info("No ack from master, retrying")
+      sendToMaster(WorkRejected(workerId, workId))
+  }
+
 
   def waitForWorkIsDoneAck(result: EncodedVideo): Receive = {
     case Ack(id) if id == workId =>
@@ -87,13 +98,16 @@ class Worker(clusterClient: ActorRef, workExecutorProps: Props, registerInterval
     clusterClient ! SendToAll("/user/master/active", msg)
   }
 
-
   def working: Receive = {
     case WorkComplete(result) =>
       log.info("Work is complete. Result {}.", result)
       sendToMaster(WorkIsDone(workerId, workId, result))
       context.setReceiveTimeout(5.seconds)
       context.become(waitForWorkIsDoneAck(result))
+    case WorkerRejected(workId) =>
+      sendToMaster(WorkRejected(workerId, workId.toString))
+      context.setReceiveTimeout(5.seconds)
+      context.become(waitForWorkRejectedAck())
     case _: Work =>
       log.info("Worker {} is already working", workerId)
   }
