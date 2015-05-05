@@ -13,9 +13,7 @@ scalacOptions ++= Seq("-Ywarn-unused", "-Ywarn-unused-import", "-Xlint", "-depre
 libraryDependencies ++= {
   val akkaStreamV = "1.0-M3"
   val sprayV = "1.3.3"
-  val fingerV = "1.5.2+"
   Seq(
-    "de.sciss" %% "fingertree" % fingerV,
     "org.slf4j"               % "slf4j-api" % "1.2",
     "ch.qos.logback"          % "logback-classic" % "1.0.0" % "runtime",
     "io.spray"               %%  "spray-can"     % sprayV,
