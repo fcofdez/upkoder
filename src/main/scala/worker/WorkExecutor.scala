@@ -28,6 +28,7 @@ class WorkExecutor extends Actor with ActorLogging{
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
       if (duration <= 1)
+        srcMedia.delete
         sender ! Worker.WorkerRejected(upcloseBroadcast.id)
       else {
         val thumbnails = generateThumbnails(srcMedia, duration)
@@ -39,6 +40,7 @@ class WorkExecutor extends Actor with ActorLogging{
         val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
         thumbnails.foreach { _.delete }
         encodedMedia.delete
+        srcMedia.delete
         sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, mediaInfo))
       }
   }
