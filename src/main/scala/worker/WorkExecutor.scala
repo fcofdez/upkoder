@@ -27,10 +27,10 @@ class WorkExecutor extends Actor with ActorLogging{
       val url = upcloseBroadcast.video_url
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
-      if (duration <= 1)
+      if (duration <= 1) {
         srcMedia.delete
         sender ! Worker.WorkerRejected(upcloseBroadcast.id)
-      else {
+      } else {
         val thumbnails = generateThumbnails(srcMedia, duration)
         val thumbsInfo = thumbnails map { x ⇒ getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, thumbBucket, upcloseBroadcast.thumbName(x.getName))) }
         val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
