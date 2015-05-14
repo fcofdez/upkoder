@@ -37,6 +37,7 @@ class WorkExecutor extends Actor with ActorLogging{
         val encodedMedia = encode(srcMedia.getPath)
         val gifFile = generateGif(srcMedia.getPath, duration)
         uploadToS3(gifFile, videoBucket, upcloseBroadcast.gifName)
+        gifFile.delete
         val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, videoBucket, upcloseBroadcast.videoArchiveName))
         val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
         val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
