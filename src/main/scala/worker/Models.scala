@@ -57,6 +57,10 @@ case class UpcloseBroadcast(id: Int, title: Option[String], duration: Int, cumul
     this.archiveName + "video.mp4"
   }
 
+  def gifName: String = {
+    this.archiveName + "video.gif"
+  }
+
   def video_url: String = {
     val tokbox_api_key = this.tokbox_api_key
     val tokbox_archive_id = this.tokbox_archive_id

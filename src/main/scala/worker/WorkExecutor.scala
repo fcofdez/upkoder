@@ -35,6 +35,8 @@ class WorkExecutor extends Actor with ActorLogging{
         val thumbsInfo = thumbnails map { x ⇒ getMediaInfo(x).transformToEncodeMedia(x, uploadToS3(x, thumbBucket, upcloseBroadcast.thumbName(x.getName))) }
         val finalThumsInfo = thumbsInfo map { _.copy(broadcast_id = upcloseBroadcast.id) }
         val encodedMedia = encode(srcMedia.getPath)
+        val gifFile = generateGif(srcMedia.getPath, duration)
+        uploadToS3(gifFile, videoBucket, upcloseBroadcast.gifName)
         val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, videoBucket, upcloseBroadcast.videoArchiveName))
         val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
         val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
@@ -53,6 +55,17 @@ class WorkExecutor extends Actor with ActorLogging{
   def getDuration(filePath: String): Int = {
     val info = Seq("ffprobe", "-i",  filePath, "-show_format", "-loglevel", "quiet")
     info.lineStream.filter(_.contains("duration")).map(_.replace("duration=", "")).mkString.toDouble.toInt
+  }
+
+  def generateGif(filePath: String, duration: Int): File = {
+    var position = nextInt(duration)
+    val gifFile = File.createTempFile("video-", ".gif")
+    val gifFilePath = gifFile.getPath
+    if (position + 2 >= duration) {
+      position = position - 3
+    }
+    Seq("ffmpeg", "-v", "warning", "-ss", position.toString, "-t", "2", "-i", filePath, "-vf", "scale=300:-1", "-gifflags", "+transdiff", "-y", gifFilePath).!
+    gifFile
   }
 
   def generateThumbnail(filePath: String, second: Int): File = {
