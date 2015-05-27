@@ -34,10 +34,6 @@ case class UpcloseAccount(id: Int, username: String)
 case class UpcloseBroadcast(id: Int, title: Option[String], duration: Int, cumulative_participant_count: Int, created_at: DateTime, tokbox_api_key: String, tokbox_archive_id: String, account: UpcloseAccount) extends Ordered[UpcloseBroadcast] {
   import scala.math.Ordered.orderingToOrdered
 
-  lazy val config = ConfigFactory.load()
-  lazy val env = sys.env.get("ENV").getOrElse("dev")
-  lazy val originBucket = config.getString(s"upclose.$env.s3.bucket.origin")
-
 
   def size: Int = {
     this.duration * 141356
@@ -70,6 +66,9 @@ case class UpcloseBroadcast(id: Int, title: Option[String], duration: Int, cumul
   def video_url: String = {
     val tokbox_api_key = this.tokbox_api_key
     val tokbox_archive_id = this.tokbox_archive_id
+    val config = ConfigFactory.load()
+    val env = sys.env.get("ENV").getOrElse("dev")
+    val originBucket = config.getString(s"upclose.$env.s3.bucket.origin")
     s"https://s3.amazonaws.com/$originBucket/$tokbox_api_key/$tokbox_archive_id/archive.mp4"
   }
 
