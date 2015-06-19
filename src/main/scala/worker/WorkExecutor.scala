@@ -2,6 +2,7 @@ package worker
 
 import akka.actor.{Actor, ActorLogging}
 import java.io.File
+import java.nio.file.Files
 import java.net.URL
 import sys.process._
 import util.Random.nextInt
@@ -28,7 +29,7 @@ class WorkExecutor extends Actor with ActorLogging{
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
       if (duration <= 1) {
-        srcMedia.delete
+        Files.delete(srcMedia.toPath)
         sender ! Worker.WorkerRejected(upcloseBroadcast.id)
       } else {
         val thumbnails = generateThumbnails(srcMedia, duration)
@@ -37,13 +38,13 @@ class WorkExecutor extends Actor with ActorLogging{
         val encodedMedia = encode(srcMedia.getPath)
         val gifFile = generateGif(srcMedia.getPath, duration)
         uploadToS3(gifFile, videoBucket, upcloseBroadcast.gifName)
-        gifFile.delete
+        Files.delete(gifFile.toPath)
         val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, videoBucket, upcloseBroadcast.videoArchiveName))
         val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
         val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
-        thumbnails.foreach { _.delete }
-        encodedMedia.delete
-        srcMedia.delete
+        thumbnails.foreach {(thumbnail: File) => Files.delete( thumbnail.toPath ) }
+        Files.delete(encodedMedia.toPath)
+        Files.delete(srcMedia.toPath)
         sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, mediaInfo))
       }
   }
