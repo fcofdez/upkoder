@@ -2,7 +2,6 @@ package worker
 
 import akka.actor.{Actor, ActorLogging}
 import java.io.File
-import java.nio.file.Files
 import java.net.URL
 import sys.process._
 import util.Random.nextInt
@@ -23,13 +22,17 @@ class WorkExecutor extends Actor with ActorLogging{
   implicit val s3 = S3()
   s3.setRegion(Region(region_conf))
 
+  def deleteFile(filePath: String) = {
+    Seq("rm", filePath).!
+  }
+
   def receive = {
     case upcloseBroadcast: UpcloseBroadcast ⇒
       val url = upcloseBroadcast.video_url
       val srcMedia = downloadMedia(url)
       val duration = getDuration(srcMedia.getPath)
       if (duration <= 1) {
-        Files.delete(srcMedia.toPath)
+        deleteFile(srcMedia.getPath)
         sender ! Worker.WorkerRejected(upcloseBroadcast.id)
       } else {
         val thumbnails = generateThumbnails(srcMedia, duration)
@@ -38,13 +41,13 @@ class WorkExecutor extends Actor with ActorLogging{
         val encodedMedia = encode(srcMedia.getPath)
         val gifFile = generateGif(srcMedia.getPath, duration)
         uploadToS3(gifFile, videoBucket, upcloseBroadcast.gifName)
-        Files.delete(gifFile.toPath)
+        deleteFile(gifFile.getPath)
         val encodedVideoInfo = getMediaInfo(encodedMedia).transformToEncodeMedia(encodedMedia, uploadToS3(encodedMedia, videoBucket, upcloseBroadcast.videoArchiveName))
         val finalEncodedMediaInfo = encodedVideoInfo.copy(broadcast_id = upcloseBroadcast.id)
         val mediaInfo = finalThumsInfo :+ finalEncodedMediaInfo
-        thumbnails.foreach {(thumbnail: File) => Files.delete( thumbnail.toPath ) }
-        Files.delete(encodedMedia.toPath)
-        Files.delete(srcMedia.toPath)
+        thumbnails.foreach {(thumbnail: File) => deleteFile( thumbnail.getPath ) }
+        deleteFile(encodedMedia.getPath)
+        deleteFile(srcMedia.getPath)
         sender() ! Worker.WorkComplete(EncodedVideo(upcloseBroadcast.id, mediaInfo))
       }
   }
